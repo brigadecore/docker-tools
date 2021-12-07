@@ -1,7 +1,5 @@
 import { events, Event, Job } from "@brigadecore/brigadier"
 
-const releaseTagRegex = /^refs\/tags\/(v[0-9]+(?:\.[0-9]+)*(?:\-.+)?)$/
-
 const kanikoImg = "brigadecore/kaniko:v0.2.0"
 const localPath = "/workspaces/docker-tools"
 
@@ -13,12 +11,6 @@ class MakeTargetJob extends Job {
     this.primaryContainer.workingDirectory = localPath
     this.primaryContainer.environment = env || {}
     this.primaryContainer.environment["SKIP_DOCKER"] = "true"
-    if (event.worker?.git?.ref) {
-      const matchStr = event.worker.git.ref.match(releaseTagRegex)
-      if (matchStr) {
-        this.primaryContainer.environment["VERSION"] = Array.from(matchStr)[1] as string
-      }
-    }
     this.primaryContainer.command = [ "make" ]
     this.primaryContainer.arguments = [ target ]
   }
@@ -26,12 +18,16 @@ class MakeTargetJob extends Job {
 
 // PushImageJob is a specialized job type for publishing Docker images.
 class PushImageJob extends MakeTargetJob {
-  constructor(target: string, event: Event) {
-    super(target, kanikoImg, event, {
+  constructor(target: string, event: Event, version?: string) {
+    const env = {
       "DOCKER_ORG": event.project.secrets.dockerhubOrg,
       "DOCKER_USERNAME": event.project.secrets.dockerhubUsername,
       "DOCKER_PASSWORD": event.project.secrets.dockerhubPassword
-    })
+    }
+    if (version) {
+      env["VERSION"] = version
+    }
+    super(target, kanikoImg, event, env)
   }
 }
 
@@ -48,8 +44,8 @@ const buildJob = (event: Event) => {
 jobs[buildJobName] = buildJob
 
 const pushJobName = "push"
-const pushJob = (event: Event) => {
-  return new PushImageJob(pushJobName, event)
+const pushJob = (event: Event, version?: string) => {
+  return new PushImageJob(pushJobName, event, version)
 }
 jobs[pushJobName] = pushJob
 
@@ -82,19 +78,9 @@ events.on("brigade.sh/github", "check_run:rerequested", async event => {
   throw new Error(`No job found with name: ${jobName}`)
 })
 
-// Pushing new commits to any branch in github triggers a check suite. Such
-// events are already handled above. Here we're only concerned with the case
-// wherein a new TAG has been pushed-- and even then, we're only concerned with
-// tags that look like a semantic version and indicate a formal release should
-// be performed.
-events.on("brigade.sh/github", "push", async event => {
-  const matchStr = event.worker.git.ref.match(releaseTagRegex)
-  if (matchStr) {
-    // This is an official release with a semantically versioned tag
-    await pushJob(event).run()
-  } else {
-    console.log(`Ref ${event.worker.git.ref} does not match release tag regex (${releaseTagRegex}); not releasing.`)
-  }
+events.on("brigade.sh/github", "release:published", async event => {
+  const version = JSON.parse(event.payload).release.tag_name
+  await pushJob(event, version).run()
 })
 
 events.process()
