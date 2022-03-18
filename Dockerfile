@@ -1,8 +1,19 @@
-FROM docker:20.10.9
+FROM golang:1.17.8-bullseye as builder
+
+ARG GHR_VERSION=v0.14.0
+ARG CGO_ENABLED=0
+ARG GOPATH=/tmp/gotools
+
+RUN go get -v github.com/tcnksm/ghr@$GHR_VERSION \
+    && mv $GOPATH/bin/* /usr/local/bin/
+
+FROM docker:20.10.9 as final
 
 ARG BUILDX_VERSION=v0.6.3
 ARG GRYPE_VERSION=v0.33.1
 ARG SYFT_VERSION=v0.41.4
+
+COPY --from=builder /usr/local/bin/ghr /usr/local/bin/ghr
 
 RUN apk add \ 
     curl \
