@@ -10,8 +10,8 @@ RUN go get -v github.com/tcnksm/ghr@$GHR_VERSION \
 FROM docker:20.10.9 as final
 
 ARG BUILDX_VERSION=v0.6.3
-ARG GRYPE_VERSION=v0.33.1
-ARG SYFT_VERSION=v0.41.4
+ARG GRYPE_VERSION=v0.34.7
+ARG SYFT_VERSION=v0.42.4
 
 COPY --from=builder /usr/local/bin/ghr /usr/local/bin/ghr
 
