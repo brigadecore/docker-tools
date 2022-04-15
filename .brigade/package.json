@@ -1,6 +1,6 @@
 {
   "name": "docker-tools-ci-cd",
   "dependencies": {
-    "@brigadecore/brigadier": "^2.2.0"
+    "@brigadecore/brigadier": "^2.4.0"
   }
 }
